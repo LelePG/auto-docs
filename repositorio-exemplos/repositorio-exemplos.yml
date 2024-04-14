@@ -1,0 +1,59 @@
+name: Check README
+
+on: push
+
+jobs:
+  check_readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: Install Hugo
+        run: |
+          wget https://github.com/gohugoio/hugo/releases/download/v0.123.3/hugo_0.123.3_linux-amd64.deb
+          sudo dpkg -i hugo_0.123.3_linux-amd64.deb
+      - name: Config git
+        run: |
+          git config --global user.name "Action README"
+          git config --global user.email " "
+          # Usar o link do repositório de destino na linha abaixo.
+          git submodule add https://x-access-token:${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git action-destino
+      - name: Check for README.md and img directory
+        run: |
+          while IFS= read -r -d '' file; do
+            dir=$(dirname "$file")
+            dir=${dir#./}  # remove leading ./
+
+            if [ ! -f "$dir/README.md" ]; then
+                echo "No README.md found"
+                continue
+            fi
+
+            if git diff --quiet HEAD~1 HEAD "$dir/README.md"; then
+                  echo "No changes to $dir/README.md"
+                  continue
+            fi
+
+            if [[ "$dir" != "." && "$dir" != ".." ]]; then
+              cd ./action-destino/
+              # Usar o nome onde os arquivos do projeto devem ser usados na documentação
+              repo_name="Franzininho C0 - Exemplos Arduino"
+              rm -rf "./content/$repo_name/${dir:3}"
+              hugo new content "$repo_name/${dir:3}/_index.md"
+              cat "../$file" >> "./content/$repo_name/${dir:3}/_index.md"
+
+              echo "Copiando $dir"
+
+              if [[ -d "../$dir/img" ]]; then
+                cp -r "../$dir/img" "./content/$repo_name/${dir:3}/img"
+              fi
+              cd ..
+            fi
+            done < <(find . -path './.git' -prune -o -path './action-destino' -prune -o -iname 'readme.md' -print0)
+            cd ./action-destino/
+            git add .
+            git diff --exit-code --quiet || git commit -m "Documentação automática"
+            # Usar o link do repositório de destino na linha abaixo.
+            git push https://${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git
