@@ -16,44 +16,55 @@ jobs:
           sudo dpkg -i hugo_0.123.3_linux-amd64.deb
       - name: Config git
         run: |
-          git config --global user.name "Action README"
-          git config --global user.email " "
+          git config --global user.name "Auto Docs"
+          git config --global user.email "auto-docs@mail.com"
           # Usar o link do repositório de destino na linha abaixo.
-          git submodule add https://x-access-token:${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git action-destino
-      - name: Check for README.md and img directory
+          git submodule add  https://${{ secrets.TOKEN }}@github.com/CAMINHO-PARA/REPOSITORIO-DESTINO.git repositorio-destino
+      - name: Checar por README.md e pasta de imagens
         run: |
+          caminho_destino="NOME-FINAL-DO-REPOSITORIO"
           while IFS= read -r -d '' file; do
             dir=$(dirname "$file")
             dir=${dir#./}  # remove leading ./
 
-            if [ ! -f "$dir/README.md" ]; then
+            if [ ! -f "$dir/README.md" ]; then # Se não for encontrado um README nessa pasta, pula a pasta
                 echo "No README.md found"
                 continue
             fi
-
-            if git diff --quiet HEAD~1 HEAD "$dir/README.md"; then
-                  echo "No changes to $dir/README.md"
-                  continue
+            
+            if git diff --quiet HEAD~1 HEAD "$dir/README.md"; then # Se não existirem mudanças no README
+                  echo "$dir/README.md não foi alterado"
+                  if [[ -d "./repositorio-destino/content/$caminho_destino/$dir" ]]; then # E já existir uma pasta desse tipo no repositório de destino
+                        continue # Pula a pasta
+                  fi
             fi
 
             if [[ "$dir" != "." && "$dir" != ".." ]]; then
-              cd ./action-destino/
+              cd ./repositorio-destino/
               # Usar o nome onde os arquivos do projeto devem ser usados na documentação
-              repo_name="Franzininho C0 - Exemplos Arduino"
-              rm -rf "./content/$repo_name/${dir:3}"
-              hugo new content "$repo_name/${dir:3}/_index.md"
-              cat "../$file" >> "./content/$repo_name/${dir:3}/_index.md"
+              rm -rf "./content/$caminho_destino/$dir"
+              hugo new content -k exercicio "$caminho_destino/$dir/_index.md" # Cria um conteúdo do tipo exercício que precisa ser definido nos modelos do Hugo
+              cat "../$file" >> "./content/$caminho_destino/$dir/_index.md"
 
               echo "Copiando $dir"
 
-              if [[ -d "../$dir/img" ]]; then
-                cp -r "../$dir/img" "./content/$repo_name/${dir:3}/img"
+              if [[ -d "../$dir/img" ]]; then # Se tiver pasta imagens, copia a pasta imagens
+                cp -r "../$dir/img" "./content/$caminho_destino/$dir/img"
               fi
               cd ..
             fi
-            done < <(find . -path './.git' -prune -o -path './action-destino' -prune -o -iname 'readme.md' -print0)
-            cd ./action-destino/
-            git add .
-            git diff --exit-code --quiet || git commit -m "Documentação automática"
-            # Usar o link do repositório de destino na linha abaixo.
-            git push https://${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git
+          done < <(find . -path './.git' -prune -o -path './repositorio-destino' -prune -o -iname 'readme.md' -print0)
+          cd ./repositorio-destino/
+
+          if ! git diff --quiet HEAD~1 HEAD "../README.md"; then # Se teve modificação no readme principal do repositório, copiamos esse readme
+              hugo new content "$caminho_destino/_index.md" --force
+              cat ../README.md >> "./content/$caminho_destino/_index.md"
+          fi
+
+          {
+            git add . #Adiciona tudo que foi alterado e prepara o commit
+            git commit -m "Documentação automática ($caminho_destino $(date))" &&
+            git push https://${{ secrets.TOKEN }}@github.com/CAMINHO-PARA/REPOSITORIO-DESTINO.git
+          } || {
+            echo "Sem alterações significativas para committar"
+          }

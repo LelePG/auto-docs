@@ -16,28 +16,28 @@ jobs:
           sudo dpkg -i hugo_0.123.3_linux-amd64.deb
       - name: Config git
         run: |
-          git config --global user.name "LelePG"
-          git config --global user.email " "
-          git submodule add https://x-access-token:${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git action-destino
+          git config --global user.name "Auto Docs"
+          git config --global user.email "auto-docs@mail.com"
+          git submodule add  https://${{ secrets.TOKEN }}@github.com/CAMINHO-PARA/REPOSITORIO-DESTINO.git repositorio-destino
 
       - name: Check for README.md and img directory
         run: |
           if [ -f "./README.md" ]; then
+            caminho_destino="Franzininho DIY Board"
 
             if git diff --quiet HEAD~1 HEAD "./README.md"; then
                   echo "No changes to README.md"
                   exit 0
             fi
 
-            cd ./action-destino/
-            repo_name="Franzininho DIY Board"
-            rm -rf "./content/$repo_name/" # remove the directory de dntro de action-destino
-            hugo new content "$repo_name/_index.md"
-            cat "../README.md" >> "./content/$repo_name/_index.md"
+            cd ./repositorio-destino/
+            rm -rf "./content/$caminho_destino/" # remove the directory de dntro de repositorio-destino
+            hugo new content "$caminho_destino/_index.md"
+            cat "../README.md" >> "./content/$caminho_destino/_index.md"
 
             if [[ -d "../img" ]]; then
               pwd
-              cp -r "..//img" "./content/$repo_name/img"
+              cp -r "../img" "./content/$caminho_destino/img"
               echo "copiando pasta imagens"
             else
               echo " does not have img folder"
@@ -45,7 +45,7 @@ jobs:
 
             cd ..
           fi
-          cd ./action-destino/
+          cd ./repositorio-destino/
           git add .
           git commit -m "Copied README.md files and img directories"
-          git push https://${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git
+          git push  https://${{ secrets.TOKEN }}@github.com/CAMINHO-PARA/REPOSITORIO-DESTINO.git

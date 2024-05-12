@@ -4,8 +4,6 @@
 
 O formato esperado para este tipo de repositório é um repositório com várias subpastas, onde cada subpasta possui um arquivo README.md, podendo também ter uma pasta img. A ideia é que todos os arquivos READMEs e pastas img associadas aos exemplos sejam transferidas para o repositório de documentação. Cada pasta deve ser nomeada com dois números e um traço seguido do nome. Um exemplo de árvore pode ser vista abaixo:
 
-Exemplo:
-
 ```
 -- Pasta Principal
     -- 01-exemplo1
@@ -23,6 +21,8 @@ Exemplo:
             -- foto1.jpeg
             -- foto3.jpeg
 ```
+
+Para atingir esse objetivo, uso uma action e a criação de um archetype específico do Hugo no arquivo de destino para fazer formatações e organizações com base no nome do arquivo. O archetype pode ser acessado [clicando aqui](./exemplo.md).
 
 ### Explicação do código:
 
@@ -68,50 +68,90 @@ jobs:
 ```bash
 - name: Config git
     run: |
-        git config --global user.name "Action README"
-        git config --global user.email " " # Usar o link do repositório de destino na linha abaixo.
+        git config --global user.name "Auto Docs"
+        git config --global user.email "auto-docs@mail.com"
+        # Usar o link do repositório de destino na linha abaixo.
         git submodule add https://x-access-token:${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git action-destino
 ```
 
 - Check for README.md and img directory (aqui é o script que faz a mágina acontecer em si.)
 
 ```bash
-      - name: Check for README.md and img directory
-        run: |
-            while IFS= read -r -d '' file; do
-            dir=$(dirname "$file")
-            dir=${dir#./} # remove leading ./
+- name: Checar por README.md e pasta de imagens
+    run: |
+    caminho_destino="NOME-FINAL-DO-REPOSITORIO"
+    while IFS= read -r -d '' file; do
+        dir=$(dirname "$file")
+        dir=${dir#./}  # remove leading ./
 
+        if [ ! -f "$dir/README.md" ]; then # Se não for encontrado um README nessa pasta, pula a pasta
+            echo "No README.md found"
+            continue
+        fi
 
-            if [ ! -f "$dir/README.md" ]; then # se não tiver readme na pasta....
-                echo "No README.md found"
-                continue
+        if git diff --quiet HEAD~1 HEAD "$dir/README.md"; then # Se não existirem mudanças no README
+            echo "$dir/README.md não foi alterado"
+            if [[ -d "./action-destino/content/$caminho_destino/$dir" ]]; then # E já existir uma pasta desse tipo no repositório de destino
+                    continue # Pula a pasta
             fi
+        fi
 
-            if git diff --quiet HEAD~1 HEAD "$dir/README.md"; then
-                echo "No changes to $dir/README.md"
-                continue
-            fi
+        if [[ "$dir" != "." && "$dir" != ".." ]]; then
+        cd ./action-destino/
+        # Usar o nome onde os arquivos do projeto devem ser usados na documentação
+        rm -rf "./content/$caminho_destino/$dir"
+        hugo new content -k exercicio "$caminho_destino/$dir/_index.md" # Cria um conteúdo do tipo exercício que precisa ser definido nos modelos do Hugo
+        cat "../$file" >> "./content/$caminho_destino/$dir/_index.md"
 
-            if [["$dir" != "." && "$dir" != ".."]]; then
-                cd ./action-destino/
-                # Usar o nome onde os arquivos do projeto devem ser usados na documentação na próxima linha
-                repo_name="Franzininho C0 - Exemplos Arduino"
-                # O fatiamento dir:3 é para retirar os 3 primeiros caracteres, então "00-exemplo" se torna apenas "exemplo".
-                rm -rf "./content/$repo_name/${dir:3}" # Deletar o conteúdo se ele já existir
-                hugo new content "$repo_name/${dir:3}/\_index.md" # Criar o conteúdo
-                cat "../$file" >> "./content/$repo_name/${dir:3}/\_index.md" #copiar o conteúdo do README para o _index.md criado
+        echo "Copiando $dir"
 
-                if [[ -d "../$dir/img" ]]; then # se a pasta tiver uma pasta imagens, copiar a pasta imagens.
-                    cp -r "../$dir/img" "./content/$repo_name/${dir:3}/img"
-                fi
-                cd ..
-            fi
-            done < <(find . -path './.git' -prune -o -path './action-destino' -prune -o -iname 'readme.md' -print0)
-            cd ./action-destino/
-            git add .
-            git diff --exit-code --quiet || git commit -m "Documentação automática" # Evita um erro gerado pela action quando acontece um commit vazio
-            # Usar o link do repositório de destino na linha abaixo.
-            git push https://${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git
+        if [[ -d "../$dir/img" ]]; then # Se tiver pasta imagens, copia a pasta imagens
+            cp -r "../$dir/img" "./content/$caminho_destino/$dir/img"
+        fi
+        cd ..
+        fi
+    done < <(find . -path './.git' -prune -o -path './action-destino' -prune -o -iname 'readme.md' -print0)
+    cd ./action-destino/
+
+    if ! git diff --quiet HEAD~1 HEAD "../README.md"; then # Se teve modificação no readme principal do repositório, copiamos esse readme
+        hugo new content "$caminho_destino/_index.md" --force
+        cat ../README.md >> "./content/$caminho_destino/_index.md"
+    fi
+
+    {
+        git add . #Adiciona tudo que foi alterado e prepara o commit
+        git commit -m "Documentação automática ($caminho_destino $(date))" &&
+        git push https://${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git
+    } || {
+        echo "Sem alterações significativas para committar"
+    }
+```
+
+## Explicação do archetype exemplo.md
+
+O Archetype Exemplo possui as priedades `title`, `date`, `draft` e `weight`. A propriedade date é criada a partir do valor da variável de página `Date` do Hugo, enquanto a propriedade `draft` é setada para falso para que o documento não seja entendido como rascunho. Já o processo de geração da propriedade `title` e `weight` explicarei abaixo do código do achertype.
 
 ```
++++
+title = '{{ (delimit (after 1 (split .File.ContentBaseName "-")) " ") | title }}'
+date = {{ .Date }}
+draft = false
+weight = {{ index (split (strings.TrimPrefix "0" .File.ContentBaseName) "-") 0 | int }}
++++
+```
+
+As propriedades title e weight são geradas a partir do nome da pasta, ou seja, uma pasta cujo nome é `01-exemplo-teste` deverá ter como título `Exemplo Teste` e como peso `1`, para isso, são realizadas uma série de manipilações a partir do nome da pasta para chegar a esse resultado. O nome da pasta está na variável `.File.ContentBaseName` e a partir daí temos as manipulações:
+
+#### Para o título
+
+- `{{ split .File.ContentBaseName "-" }}`: irá "quebrar" a string em `.File.ContentBaseName` ao encontrar um caractere `-`, o que transforma `01-exemplo-teste` em algo como `["01", "exemplo", "teste"]`
+- `{{ (after 1 (split .File.ContentBaseName "-")) }}`: faz um "fatiamento" na lista começando a partir do primeiro elemento, ou seja, `["01", "exemplo", "teste"]` vira `[ "exemplo", "teste"]`
+- `{{ (delimit (after 1 (split .File.ContentBaseName "-")) " ") }}`: une as partes do array gerado no passo anterior com um caractere de espaço, ou seja, `[ "exemplo", "teste"]` vira `exemplo teste`
+- `{{ (delimit (after 1 (split .File.ContentBaseName "-")) " ") | title }}`: passa o texto `exemplo teste` para a função title do Hugo que capitalizará as palavras, chegando ao resultado final `Exemplo Teste`.
+
+#### Para o peso
+
+- `{{ strings.TrimPrefix "0" .File.ContentBaseName }}`: usa a função `strings.TrimPrefix` para retirar um prefixo de `.File.ContentBaseName`. O prefixo que quero remover é o zero, o que é necessário para facilitar a conversão final e também para evitar problemas com pastas nomeadas com `08`, que acaba sendo entendido como um valor em base octal. Sendo assim, `01-exemplo-teste` se torna `1-exemplo-teste`.
+- `{{ (split (strings.TrimPrefix "0" .File.ContentBaseName) "-") }}` : faz o split da string resultante do passo anterior onde encontrar um caractere `-`, sendo assim , `1-exemplo-teste` se torna `["1","exemplo","teste]`
+- `{{ index (split (strings.TrimPrefix "0" .File.ContentBaseName) "-") 0  }}`: pega o elemento de índice zero do array, que é referente ao número no nome da pasta, ou seja, o valor que desejo utilizar para o peso da página. Então de `["1","exemplo","teste]` resta `"1"`.
+- `{{ index (split (strings.TrimPrefix "0" .File.ContentBaseName) "-") 0 | int }}`: por fim, se converte o valor `"1"` para um valor inteiro usando a função int.

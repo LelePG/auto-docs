@@ -64,9 +64,11 @@ jobs:
 ```bash
 - name: Config git
     run: |
-        git config --global user.name "Action README"
-        git config --global user.email " " # Usar o link do repositório de destino na linha abaixo.
-        git submodule add https://x-access-token:${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git action-destino
+        # O nome e o e-mail são genéricos para o projeto
+        git config --global user.name "Auto Docs"
+        git config --global user.email "auto-docs@mail.com"
+        # Usar o link do repositório de destino na linha abaixo.
+        git submodule add https://${{ secrets.TOKEN }}@github.com/CAMINHO-PARA/REPOSITORIO-DESTINO.git repositorio-destino
 ```
 
 - Check for README.md and img directory (aqui é o script que faz a mágina acontecer em si.)
@@ -75,6 +77,7 @@ jobs:
  - name: Check for README.md and img directory
         run: |
             if [ -f "./README.md" ]; then
+              caminho_destino="Franzininho DIY Board"
 
             # Se o README não for modificado, só sai da action
               if git diff --quiet HEAD~1 HEAD "./README.md"; then
@@ -82,22 +85,20 @@ jobs:
                   exit 0
               fi
 
-              cd ./action-destino/
+              cd ./repositorio-destino/
               ## Adicionar o nome que deve aparecer no repositório final na variável abaico
-              repo_name="Franzininho DIY Board"
-              rm -rf "./content/$repo_name/" # remove the directory na pasta de destino
-              hugo new content "$repo_name/_index.md" ## cria o conteúdo
-              cat "../README.md" >> "./content/$repo_name/_index.md" ## copia o README pro conteúdo criado
+              rm -rf "./content/$caminho_destino/" # remove the directory na pasta de destino
+              hugo new content "$caminho_destino/_index.md" ## cria o conteúdo
+              cat "../README.md" >> "./content/$caminho_destino/_index.md" ## copia o README pro conteúdo criado
 
               if [[ -d "../img" ]]; then ## se tiver a pasta imagens
-                cp -r "../img" "./content/$repo_name/img" #copia a pasta imagens
+                cp -r "../img" "./content/$caminho_destino/img" #copia a pasta imagens
               fi
               cd ..
             fi
-            cd ./action-destino/
+            cd ./repositorio-destino/
             git add .
             git commit -m "Copied README.md files and img directories"
-            git push https://${{ secrets.TOKEN }}@github.com/LelePG/action-destino.git
-
+            git push https://${{ secrets.TOKEN }}@github.com/CAMINHO-PARA/REPOSITORIO-DESTINO.git
 
 ```
